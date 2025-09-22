@@ -214,7 +214,7 @@ void redrawStage(int in_width, int in_height) {
         }
     }
 }
-
+/*
 void redrawStageTwo(int in_width, int in_height) {
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
     int offsetX = (in_width * 2) + 5;
@@ -234,7 +234,7 @@ void redrawStageTwo(int in_width, int in_height) {
         }
     }
 }
-
+*/
 double getCurrentTime() {
     return (double)GetTickCount64();
 }
@@ -363,6 +363,12 @@ int main() {
             if (key == 224) key = _getch();
             int next_x = x, next_y = y, temp_arrow = in_arrow_key;
             switch (key) {
+            case 32:  // 스페이스 키로 하드 드롭
+                while (!detectCollision(next_x, next_y + 1, block_type, in_width, in_height)) {
+                    next_y++;
+                }
+                y = next_y;
+                break;
             case 72:
                 temp_arrow = (in_arrow_key + 1) % 4;
                 break;
@@ -376,14 +382,17 @@ int main() {
                 next_y++;
                 break;
             }
+
             int temp_type = current_block_base * 4 + temp_arrow;
-            if (!detectCollision(next_x, next_y, temp_type, in_width, in_height)) {
+            if (key != 32 && !detectCollision(next_x, next_y, temp_type, in_width, in_height)) {
+                // 스페이스바 면 이미 강제 이동했으니 추가 이동 막음
                 x = next_x;
                 y = next_y;
                 in_arrow_key = temp_arrow;
                 block_type = temp_type;
             }
         }
+
 
         double now = getCurrentTime();
         if (now - lastFallTime >= 1000.0) {
@@ -398,7 +407,7 @@ int main() {
                // removeFullLinesTwo(in_width, in_height);
 
                 redrawStage(in_width, in_height);
-                redrawStageTwo(in_width, in_height);
+                //redrawStageTwo(in_width, in_height);
 
                 // 새 블럭 준비 (다음 블럭을 현재 블럭으로)
                 current_block_base = next_block_type / 4;
