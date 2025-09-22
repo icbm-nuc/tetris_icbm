@@ -12,6 +12,17 @@
 int stageInfo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 실제 보드
 int stageInfoTwo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 우측블록 표시용
 
+void showGameOver(int board_width, int board_height)
+{
+    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    COORD pos;
+    pos.X = board_width;
+    pos.Y = board_height / 2;
+    SetConsoleCursorPosition(hConsoleOut, pos);
+    printf("=== GAME OVER ===");
+}
+
+
 // 다음 블럭을 오른쪽에 표시하는 함수
 void showNextBlock(int next_block_type, int board_width,int board_height) {
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -346,8 +357,10 @@ int main() {
                 // ---- 다음 블럭 다시 표시 ----
                 showNextBlock(next_block_type / 4, in_width,in_height);
 
-                if (detectCollision(x, y, block_type, in_width, in_height))
+                if (detectCollision(x, y, block_type, in_width, in_height)) {
+                    void showGameOver(int board_width, int board_height);
                     break;
+                }
             }
             lastFallTime = now;
         }
