@@ -12,6 +12,47 @@
 int stageInfo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 실제 보드
 int stageInfoTwo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 우측블록 표시용
 
+void drawFrame(int centerX, int centerY, int width, int height) {
+    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    COORD pos;
+
+    // 시작 좌표 계산 (중심에서 좌측 위 코너로 이동)
+    int offsetX = centerX - ((width + 4) /* 가로 여유분 2*2 */) * 2 / 2;
+    int offsetY = centerY - (height + 4) / 2;
+
+    int frameWidth = width + 4;   // 기존 width보다 가로 4칸 (2씩 좌우)
+    int frameHeight = height + 4; // 기존 height보다 세로 4칸 (2씩 위아래)
+
+    // 윗선
+    pos.X = (SHORT)offsetX;
+    pos.Y = (SHORT)offsetY;
+    SetConsoleCursorPosition(hConsoleOut, pos);
+    printf("┌");
+    for (int i = 0; i < frameWidth * 2 - 2; ++i) printf("─");
+    printf("┐");
+
+    // 좌우 측면
+    for (int y = 1; y < frameHeight - 1; ++y) {
+        pos.X = (SHORT)offsetX;
+        pos.Y = (SHORT)(offsetY + y);
+        SetConsoleCursorPosition(hConsoleOut, pos);
+        printf("│");
+        pos.X = (SHORT)(offsetX + frameWidth * 2 - 1);
+        pos.Y = (SHORT)(offsetY + y);
+        SetConsoleCursorPosition(hConsoleOut, pos);
+        printf("│");
+    }
+
+    // 아랫선
+    pos.X = (SHORT)offsetX;
+    pos.Y = (SHORT)(offsetY + frameHeight - 1);
+    SetConsoleCursorPosition(hConsoleOut, pos);
+    printf("└");
+    for (int i = 0; i < frameWidth * 2 - 2; ++i) printf("─");
+    printf("┘");
+}
+
+
 void showGameOver(int board_width, int board_height)
 {
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -19,25 +60,36 @@ void showGameOver(int board_width, int board_height)
     pos.X = board_width;
     pos.Y = board_height / 2;
     SetConsoleCursorPosition(hConsoleOut, pos);
-    printf("=== GAME OVER ===");
+    printf("GAME OVER");
 }
 
 
 // 다음 블럭을 오른쪽에 표시하는 함수
-void showNextBlock(int next_block_type, int board_width,int board_height) {
+void showNextBlock(int next_block_type, int board_width, int board_height) {
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    int offsetX = 5 ; // 충분히 오른쪽에 위치
-    int offsetY = board_height + 7; // 원하는 높이
 
-    // "NEXT" 타이틀 출력
-    COORD labelPos = { offsetX, offsetY - 2 };
+    // 원래 프레임 크기
+    int blockW = 4;
+    int blockH = 4;
+
+    // 예: 보드 우측 상단 중심 좌표 계산
+    int centerX = board_width * 2 + 12; // 적절히 조정
+    int centerY = 5;
+
+    drawFrame(centerX, centerY, blockW, blockH + 2);  // 높이를 타이틀 포함해서 더 크게 조정
+
+    // 타이틀 출력 (중심 위치에서 위쪽으로 조금 위로 이동)
+    COORD labelPos = { (SHORT)(centerX - 2), (SHORT)(centerY - (blockH / 2 + 1)) };
     SetConsoleCursorPosition(hConsoleOut, labelPos);
-    printf("NEXT Block");
+    printf("NEXT");
 
-    // 블록 출력
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            COORD pos = { offsetX + j * 2, offsetY + i };
+    // 블록 출력 (프레임 중앙)
+    int startX = centerX - blockW;
+    int startY = centerY - (blockH / 2) + 1;
+
+    for (int i = 0; i < blockH; ++i) {
+        for (int j = 0; j < blockW; ++j) {
+            COORD pos = { (SHORT)(startX + j * 2), (SHORT)(startY + i) };
             SetConsoleCursorPosition(hConsoleOut, pos);
             if (blockModel[next_block_type * 4][i][j]) {
                 printf("■");
@@ -48,6 +100,9 @@ void showNextBlock(int next_block_type, int board_width,int board_height) {
         }
     }
 }
+
+
+
 
 bool detectCollision(int x, int y, int idx, int in_width, int in_height) {
     for (int i = 0; i < 4; i++) {
@@ -130,6 +185,8 @@ void removeFullLinesTwo(int in_width, int in_height) {
         }
     }
 }
+
+
 
 void redrawStage(int in_width, int in_height) {
     HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -284,14 +341,14 @@ int main() {
     double lastFallTime = getCurrentTime();
 
     createStage(in_width, in_height);
-    createStageTwo(in_width, in_height);
+    //createStageTwo(in_width, in_height);
 
     redrawStage(in_width, in_height);
-    redrawStageTwo(in_width, in_height);
+    //redrawStageTwo(in_width, in_height);
 
     // ---- 다음 블럭 최초 표시 ----
     showNextBlock(next_block_type / 4, in_width,in_height);
-
+    
     block_type = next_block_type;
     int current_block_base = block_type / 4;
 
@@ -299,7 +356,7 @@ int main() {
         double start = getCurrentTime();
 
         clearBlock(x, y, block_type);
-        clearBlockTwo(x, y, block_type, in_width);
+        //clearBlockTwo(x, y, block_type, in_width);
 
         if (_kbhit()) {
             int key = _getch();
@@ -336,9 +393,9 @@ int main() {
             }
             else {
                 fixBlock(x, y, block_type);
-                fixBlockTwo(x, y, block_type);
+               // fixBlockTwo(x, y, block_type);
                 removeFullLines(in_width, in_height);
-                removeFullLinesTwo(in_width, in_height);
+               // removeFullLinesTwo(in_width, in_height);
 
                 redrawStage(in_width, in_height);
                 redrawStageTwo(in_width, in_height);
@@ -358,7 +415,7 @@ int main() {
                 showNextBlock(next_block_type / 4, in_width,in_height);
 
                 if (detectCollision(x, y, block_type, in_width, in_height)) {
-                    void showGameOver(int board_width, int board_height);
+                    showGameOver(in_width, in_height);
                     break;
                 }
             }
@@ -366,7 +423,7 @@ int main() {
         }
 
         drawBlock(x, y, block_type);
-        drawBlockTwo(x, y, block_type, in_width);
+        //drawBlockTwo(x, y, block_type, in_width);
 
         double elapsed = getCurrentTime() - start;
         double target = 10.0f;
