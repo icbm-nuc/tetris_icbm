@@ -1,442 +1,237 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+﻿#include <stdio.h>
+#include <Windows.h> // Windows API
 #include <conio.h>
 #include "block.h"
+#include <time.h>
+#include <stdlib.h>
 
-#define MAX_WIDTH 40
-#define MAX_HEIGHT 40
 
-int stageInfo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 실제 보드
-int stageInfoTwo[MAX_HEIGHT][MAX_WIDTH] = { 0 }; // 우측블록 표시용
 
-void drawFrame(int centerX, int centerY, int width, int height) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    COORD pos;
+#define LEFT_KEY 75
+#define RIGHT_KEY 77
+#define UP_KEY 72
+#define DOWN_KEY 80
+#define NUM_OF_BLOCKS 7
 
-    // 시작 좌표 계산 (중심에서 좌측 위 코너로 이동)
-    int offsetX = centerX - ((width + 4) /* 가로 여유분 2*2 */) * 2 / 2;
-    int offsetY = centerY - (height + 4) / 2;
+#define STAGE_WIDTH 24
+#define STAGE_HEIGHT 20
 
-    int frameWidth = width + 4;   // 기존 width보다 가로 4칸 (2씩 좌우)
-    int frameHeight = height + 4; // 기존 height보다 세로 4칸 (2씩 위아래)
+int curX = 0;
+int curY = 0;
+int curBlockIdx = 0;
+int stageInfo[STAGE_HEIGHT + 1][STAGE_WIDTH + 2] = { 0, };
 
-    // 윗선
-    pos.X = (SHORT)offsetX;
-    pos.Y = (SHORT)offsetY;
-    SetConsoleCursorPosition(hConsoleOut, pos);
-    printf("┌");
-    for (int i = 0; i < frameWidth * 2 - 2; ++i) printf("─");
-    printf("┐");
 
-    // 좌우 측면
-    for (int y = 1; y < frameHeight - 1; ++y) {
-        pos.X = (SHORT)offsetX;
-        pos.Y = (SHORT)(offsetY + y);
-        SetConsoleCursorPosition(hConsoleOut, pos);
-        printf("│");
-        pos.X = (SHORT)(offsetX + frameWidth * 2 - 1);
-        pos.Y = (SHORT)(offsetY + y);
-        SetConsoleCursorPosition(hConsoleOut, pos);
-        printf("│");
-    }
+void setCursorPosition(int x, int y) {
 
-    // 아랫선
-    pos.X = (SHORT)offsetX;
-    pos.Y = (SHORT)(offsetY + frameHeight - 1);
-    SetConsoleCursorPosition(hConsoleOut, pos);
-    printf("└");
-    for (int i = 0; i < frameWidth * 2 - 2; ++i) printf("─");
-    printf("┘");
+	COORD pos = { x, y };
+	HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleCursorPosition(hConsoleOut, pos);
+}
+void eraseCursor() {
+	HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	CONSOLE_CURSOR_INFO  curCursorInfo;
+	GetConsoleCursorInfo(hConsoleOut, &curCursorInfo);
+	curCursorInfo.bVisible = 0;
+	SetConsoleCursorInfo(hConsoleOut, &curCursorInfo);
+}
+
+void drawBlock(int x, int y, int idx) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (blockModel[idx][i][j]) {
+				setCursorPosition(2 * (x + j), y + i);
+				printf("■");
+
+			}
+		}
+	}
+}
+
+void eraseBlock(int x, int y, int idx) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (blockModel[idx][i][j]) {
+				setCursorPosition(2 * (x + j), y + i);
+				printf("  ");
+			}
+		}
+	}
 }
 
 
-void showGameOver(int board_width, int board_height)
-{
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    COORD pos;
-    pos.X = board_width;
-    pos.Y = board_height / 2;
-    SetConsoleCursorPosition(hConsoleOut, pos);
-    printf("GAME OVER");
+int detectCollision(int x, int y, int idx) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (blockModel[idx][i][j]) {
+				if (stageInfo[y + i][2 * (x + j)] >= 1)
+					return 1;
+				if (stageInfo[y + i][2 * (x + j) + 1] >= 1)
+					return 1;
+			}
+		}
+	}
+	return 0;
+}
+void initBlock() {
+	curX = 5;
+	curY = 0;
+	srand(time(NULL));
+	curBlockIdx = (rand() % NUM_OF_BLOCKS) * 4;
+	if (detectCollision(curX, curY, curBlockIdx))
+		printf("Game Over");
+	return ;
+	drawBlock(curX, curY, curBlockIdx);
+}
+
+int setBlockConcrete(int x, int y, int idx) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (blockModel[idx][i][j]) {
+				stageInfo[y + i][2 * (x + j)] = 2;
+				stageInfo[y + i][2 * (x + j) + 1] = 2;
+			}
+		}
+	}
+	return 0;
+}
+
+int moveBlock(int x, int y) {
+	if (detectCollision(curX + x, curY + y, curBlockIdx))
+		return 0;
+
+	eraseBlock(curX, curY, curBlockIdx);
+	curX += x;
+	curY += y;
+	drawBlock(curX, curY, curBlockIdx);
+	return 1;
+}
+
+void rotateBlock() {
+	int nextIdx = curBlockIdx + 1;
+	if (nextIdx == 4) {
+		nextIdx = 0;
+	}
+	if (detectCollision(curX, curY, nextIdx))
+		return;
+
+	eraseBlock(curX, curY, curBlockIdx);
+	if (curBlockIdx % 4 == 3) {
+		curBlockIdx -= 3;
+	}
+	else {
+		curBlockIdx += 1;
+	}
+	drawBlock(curX, curY, curBlockIdx);
+}
+
+void drawStage() {
+	for (int y = 0; y < STAGE_HEIGHT; y++) {
+		setCursorPosition(0, y);
+		printf("│ ");
+		stageInfo[y][0] = 1;
+		stageInfo[y][1] = 1;
+		setCursorPosition(STAGE_WIDTH, y);
+		printf("│ ");
+		stageInfo[y][STAGE_WIDTH] = 1;
+		stageInfo[y][STAGE_WIDTH + 1] = 1;
+	}
+	for (int x = 1; x < STAGE_WIDTH; x++) {
+		setCursorPosition(x, STAGE_HEIGHT);
+		printf("─");
+		stageInfo[STAGE_HEIGHT][x] = 1;
+	}
+	setCursorPosition(0, STAGE_HEIGHT);
+	printf("└");
+	stageInfo[STAGE_HEIGHT][0] = 1;
+	setCursorPosition(STAGE_WIDTH, STAGE_HEIGHT);
+	printf("┘");
+	stageInfo[STAGE_HEIGHT][STAGE_WIDTH] = 1;
+	stageInfo[STAGE_HEIGHT][STAGE_WIDTH + 1] = 1;
+}
+
+void testStage() {
+	for (int y = 0; y < STAGE_HEIGHT + 1; y++) {
+		for (int x = 0; x < STAGE_WIDTH + 2; x++) {
+			setCursorPosition(x + STAGE_HEIGHT + 10, y);
+			printf("%d", stageInfo[y][x]);
+		}
+	}
+}
+
+void processKeyInput() {
+	int key = 0;
+	if (_kbhit() != 0) {
+		key = _getch();
+	}
+	switch (key) {
+	case LEFT_KEY:
+		moveBlock(-1, 0);
+		break;
+	case RIGHT_KEY:
+		moveBlock(1, 0);
+		break;
+	case UP_KEY:
+		rotateBlock();
+		break;
+	case DOWN_KEY:
+		moveBlock(0, 1);
+		break;
+	}
+}
+void drawConcreteBlocks() {
+	for (int y = 0; y < STAGE_HEIGHT; y++) {
+		for (int x = 2 / 2; x < (STAGE_WIDTH) / 2; x++) {
+			setCursorPosition(2 * x, y);
+			if (stageInfo[y][2 * x] > 1) {
+				printf("■");
+			}
+			else {
+				printf("  ");
+			}
+		}
+	}
+}
+void removeFilledBlock() {
+	for (int y = STAGE_HEIGHT + 1; y >= 0; y--) {
+		int cnt = 0;
+		for (int x = 0; x < STAGE_WIDTH + 2; x++) {
+			if (stageInfo[y][x] == 2)
+				cnt++;
+		}
+		if (cnt == STAGE_WIDTH - 2) {
+			for (int y1 = y; y1 >= 1; y1--) {
+				for (int x = 2; x < STAGE_WIDTH; x++) {
+					stageInfo[y1][x] = stageInfo[y1 - 1][x];
+				}
+			}
+			for (int x = 2; x < STAGE_WIDTH; x++) {
+				stageInfo[0][x] = 0;
+			}
+			y++;
+		}
+	}
+	drawConcreteBlocks();
+}
+
+int main(void) {
+	eraseCursor();
+	drawStage();
+	initBlock();
+	while (1) {
+		//testStage();
+		for (int i = 0; i < 100; i++) {
+			processKeyInput();
+			Sleep(10);
+		}
+		if (moveBlock(0, 1) == 0) {
+			setBlockConcrete(curX, curY, curBlockIdx);
+			removeFilledBlock();
+			initBlock();
+		}
+		Sleep(10);
+	}
+	return 0;
 }
 
 
-// 다음 블럭을 오른쪽에 표시하는 함수
-void showNextBlock(int next_block_type, int board_width, int board_height) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-
-    // 원래 프레임 크기
-    int blockW = 4;
-    int blockH = 4;
-
-    // 예: 보드 우측 상단 중심 좌표 계산
-    int centerX = board_width * 2 + 12; // 적절히 조정
-    int centerY = 5;
-
-    drawFrame(centerX, centerY, blockW, blockH + 2);  // 높이를 타이틀 포함해서 더 크게 조정
-
-    // 타이틀 출력 (중심 위치에서 위쪽으로 조금 위로 이동)
-    COORD labelPos = { (SHORT)(centerX - 2), (SHORT)(centerY - (blockH / 2 + 1)) };
-    SetConsoleCursorPosition(hConsoleOut, labelPos);
-    printf("NEXT");
-
-    // 블록 출력 (프레임 중앙)
-    int startX = centerX - blockW;
-    int startY = centerY - (blockH / 2) + 1;
-
-    for (int i = 0; i < blockH; ++i) {
-        for (int j = 0; j < blockW; ++j) {
-            COORD pos = { (SHORT)(startX + j * 2), (SHORT)(startY + i) };
-            SetConsoleCursorPosition(hConsoleOut, pos);
-            if (blockModel[next_block_type * 4][i][j]) {
-                printf("■");
-            }
-            else {
-                printf("  ");
-            }
-        }
-    }
-}
-
-
-
-
-bool detectCollision(int x, int y, int idx, int in_width, int in_height) {
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[idx][i][j]) {
-                int nx = x + j;
-                int ny = y + i;
-                if (nx < 0 || nx >= in_width || ny < 0 || ny >= in_height)
-                    return true;
-                if (stageInfo[ny][nx] == 1 || stageInfo[ny][nx] == 2)
-                    return true;
-            }
-        }
-    }
-    return false;
-}
-
-void fixBlock(int x, int y, int idx) {
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[idx][i][j]) {
-                stageInfo[y + i][x + j] = 1;
-            }
-        }
-    }
-}
-
-void fixBlockTwo(int x, int y, int idx) {
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[idx][i][j]) {
-                stageInfoTwo[y + i][x + j] = 2;
-            }
-        }
-    }
-}
-
-void removeFullLines(int in_width, int in_height) {
-    for (int row = in_height - 2; row >= 0; row--) {
-        bool full = true;
-        for (int col = 1; col < in_width - 1; col++) {
-            if (stageInfo[row][col] == 0) {
-                full = false;
-                break;
-            }
-        }
-        if (full) {
-            for (int moveRow = row; moveRow > 0; moveRow--) {
-                for (int col = 1; col < in_width - 1; col++) {
-                    stageInfo[moveRow][col] = stageInfo[moveRow - 1][col];
-                }
-            }
-            for (int col = 1; col < in_width - 1; col++) {
-                stageInfo[0][col] = 0;
-            }
-            row++;
-        }
-    }
-}
-
-void removeFullLinesTwo(int in_width, int in_height) {
-    for (int row = in_height - 2; row >= 0; row--) {
-        bool full = true;
-        for (int col = 1; col < in_width - 1; col++) {
-            if (stageInfoTwo[row][col] == 0) {
-                full = false;
-                break;
-            }
-        }
-        if (full) {
-            for (int moveRow = row; moveRow > 0; moveRow--) {
-                for (int col = 1; col < in_width - 1; col++) {
-                    stageInfoTwo[moveRow][col] = stageInfoTwo[moveRow - 1][col];
-                }
-            }
-            for (int col = 1; col < in_width - 1; col++) {
-                stageInfoTwo[0][col] = 0;
-            }
-            row++;
-        }
-    }
-}
-
-
-
-void redrawStage(int in_width, int in_height) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    for (int y = 0; y < in_height; y++) {
-        for (int x = 0; x < in_width; x++) {
-            COORD pos = { 2 * x, y + 3 };
-            SetConsoleCursorPosition(hConsoleOut, pos);
-            if (stageInfo[y][x] == 1) {
-                printf("■");
-            }
-            else if (stageInfo[y][x] == 2) {
-                if (x == 0 || x == in_width - 1) {
-                    printf("│");
-                }
-                else if (y == in_height - 1) {
-                    printf("─");
-                }
-                else {
-                    printf("  ");
-                }
-            }
-            else {
-                printf("  ");
-            }
-        }
-    }
-}
-/*
-void redrawStageTwo(int in_width, int in_height) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    int offsetX = (in_width * 2) + 5;
-    for (int y = 0; y < in_height; y++) {
-        for (int x = 0; x < in_width; x++) {
-            COORD pos = { offsetX + x, y + 3 };
-            SetConsoleCursorPosition(hConsoleOut, pos);
-            if (stageInfoTwo[y][x] == 1) {
-                printf("1");
-            }
-            else if (stageInfoTwo[y][x] == 2) {
-                printf("2");
-            }
-            else {
-                printf("0");
-            }
-        }
-    }
-}
-*/
-double getCurrentTime() {
-    return (double)GetTickCount64();
-}
-
-void drawBlock(int x, int y, int type) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[type][i][j]) {
-                COORD pos = { 2 * (x + j), (y + i) + 3 };
-                SetConsoleCursorPosition(hConsoleOut, pos);
-                printf("■");
-            }
-        }
-    }
-}
-
-void drawBlockTwo(int x, int y, int type, int in_width) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    int offsetX = (in_width * 2) + 5;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[type][i][j]) {
-                COORD pos = { offsetX + (x + j), (y + i) + 3 };
-                SetConsoleCursorPosition(hConsoleOut, pos);
-                printf("2");
-            }
-        }
-    }
-}
-
-void clearBlock(int x, int y, int type) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[type][i][j]) {
-                COORD pos = { 2 * (x + j), (y + i) + 3 };
-                SetConsoleCursorPosition(hConsoleOut, pos);
-                printf("  ");
-            }
-        }
-    }
-}
-
-void clearBlockTwo(int x, int y, int type, int in_width) {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    int offsetX = (in_width * 2) + 5;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blockModel[type][i][j]) {
-                COORD pos = { offsetX + (x + j), (y + i) + 3 };
-                SetConsoleCursorPosition(hConsoleOut, pos);
-                printf("0");
-            }
-        }
-    }
-}
-
-void createStage(int in_width, int in_height) {
-    for (int i = 0; i < in_height; i++) {
-        stageInfo[i][0] = 2;
-        stageInfo[i][in_width - 1] = 2;
-    }
-    for (int i = 0; i < in_width; i++) {
-        stageInfo[in_height - 1][i] = 2;
-    }
-}
-
-void createStageTwo(int in_width, int in_height) {
-    for (int i = 0; i < in_height; i++) {
-        stageInfoTwo[i][0] = 1;
-        stageInfoTwo[i][in_width - 1] = 1;
-    }
-    for (int i = 0; i < in_width; i++) {
-        stageInfoTwo[in_height - 1][i] = 1;
-    }
-}
-
-int main() {
-    HANDLE hConsoleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_CURSOR_INFO cursorInfo;
-    GetConsoleCursorInfo(hConsoleOut, &cursorInfo);
-    cursorInfo.bVisible = FALSE;
-    SetConsoleCursorInfo(hConsoleOut, &cursorInfo);
-
-    int in_width, in_height;
-    int x = 0, y = 0;
-    int block_type = 0;
-    int in_arrow_key = 0;
-    int r = 0;
-    int next_block_type;
-
-    printf("가로 크기 입력 : ");
-    if (scanf("%d", &in_width) != 1) return 1;
-    printf("세로 크기 입력 : ");
-    if (scanf("%d", &in_height) != 1) return 1;
-
-    srand((unsigned int)time(NULL));
-    next_block_type = rand() % (sizeof(blockModel) / sizeof(blockModel[0]) / 4);
-    next_block_type *= 4;
-
-    x = in_width / 2 - 2;
-    y = 0;
-    double lastFallTime = getCurrentTime();
-
-    createStage(in_width, in_height);
-    //createStageTwo(in_width, in_height);
-
-    redrawStage(in_width, in_height);
-    //redrawStageTwo(in_width, in_height);
-
-    // ---- 다음 블럭 최초 표시 ----
-    showNextBlock(next_block_type / 4, in_width,in_height);
-    
-    block_type = next_block_type;
-    int current_block_base = block_type / 4;
-
-    while (1) {
-        double start = getCurrentTime();
-
-        clearBlock(x, y, block_type);
-        //clearBlockTwo(x, y, block_type, in_width);
-
-        if (_kbhit()) {
-            int key = _getch();
-            if (key == 224) key = _getch();
-            int next_x = x, next_y = y, temp_arrow = in_arrow_key;
-            switch (key) {
-            case 32:  // 스페이스 키로 하드 드롭
-                while (!detectCollision(next_x, next_y + 1, block_type, in_width, in_height)) {
-                    next_y++;
-                }
-                y = next_y;
-                break;
-            case 72:
-                temp_arrow = (in_arrow_key + 1) % 4;
-                break;
-            case 75:
-                next_x--;
-                break;
-            case 77:
-                next_x++;
-                break;
-            case 80:
-                next_y++;
-                break;
-            }
-
-            int temp_type = current_block_base * 4 + temp_arrow;
-            if (key != 32 && !detectCollision(next_x, next_y, temp_type, in_width, in_height)) {
-                // 스페이스바 면 이미 강제 이동했으니 추가 이동 막음
-                x = next_x;
-                y = next_y;
-                in_arrow_key = temp_arrow;
-                block_type = temp_type;
-            }
-        }
-
-
-        double now = getCurrentTime();
-        if (now - lastFallTime >= 1000.0) {
-            int next_y = y + 1;
-            if (!detectCollision(x, next_y, block_type, in_width, in_height)) {
-                y = next_y;
-            }
-            else {
-                fixBlock(x, y, block_type);
-               // fixBlockTwo(x, y, block_type);
-                removeFullLines(in_width, in_height);
-               // removeFullLinesTwo(in_width, in_height);
-
-                redrawStage(in_width, in_height);
-                //redrawStageTwo(in_width, in_height);
-
-                // 새 블럭 준비 (다음 블럭을 현재 블럭으로)
-                current_block_base = next_block_type / 4;
-                x = in_width / 2 - 2;
-                y = 0;
-                in_arrow_key = 0;
-                block_type = current_block_base * 4 + in_arrow_key;
-
-                // 새로운 next_block_type 선정
-                next_block_type = rand() % (sizeof(blockModel) / sizeof(blockModel[0]) / 4);
-                next_block_type *= 4;
-
-                // ---- 다음 블럭 다시 표시 ----
-                showNextBlock(next_block_type / 4, in_width,in_height);
-
-                if (detectCollision(x, y, block_type, in_width, in_height)) {
-                    showGameOver(in_width, in_height);
-                    break;
-                }
-            }
-            lastFallTime = now;
-        }
-
-        drawBlock(x, y, block_type);
-        //drawBlockTwo(x, y, block_type, in_width);
-
-        double elapsed = getCurrentTime() - start;
-        double target = 10.0f;
-        if (elapsed < target) Sleep((target - elapsed));
-    }
-    return 0;
-}
